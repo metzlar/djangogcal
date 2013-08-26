@@ -7,6 +7,7 @@ djangogcal.observer
 from django.db.models import signals
 from gdata.calendar import CalendarEventEntry, SendEventNotifications
 from gdata.calendar.service import CalendarService
+from gdata.service import RequestError
 
 from models import CalendarEvent
 
@@ -83,7 +84,7 @@ class CalendarObserver(object):
             event = None
         return event
     
-    def update(self, sender, instance):
+    def update(self, sender, instance, retry=False):
         """
         Update or create an entry in Google Calendar for the given instance
         of the sender model type.
@@ -97,7 +98,16 @@ class CalendarObserver(object):
                 event.send_event_notifications = SendEventNotifications(
                     value='true')
             if event.GetEditLink():
-                service.UpdateEvent(event.GetEditLink().href, event)
+                try:
+                    service.UpdateEvent(
+                        event.GetEditLink().href, event)
+                except RequestError:
+                    if not retry:
+                        self.service = None
+                        self.update(sender, instance, retry=True)
+                    else:
+                        raise
+                    
             else:
                 new_event = service.InsertEvent(event, self.feed)
                 CalendarEvent.objects.set_event_id(instance, self.feed,
