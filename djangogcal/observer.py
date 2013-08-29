@@ -62,13 +62,19 @@ class CalendarObserver(object):
         """
         self.delete(kwargs['sender'], kwargs['instance'])
     
-    def get_service(self):
+    def get_service(self, email=None, password=None):
         """
-        Get an authenticated gdata.calendar.service.CalendarService instance.
-        """
+       Get an authenticated gdata.calendar.service.CalendarService instance.
+       """
+        if not email:
+            email = self.email
+        if not password:
+            password = self.password
         if self.service is None:
-            self.service = CalendarService(email=self.email,
-                                           password=self.password)
+            self.service = CalendarService(
+                email = email,
+                password = password
+            )
             self.service.ProgrammaticLogin()
         return self.service
     
@@ -83,7 +89,17 @@ class CalendarObserver(object):
         except Exception:
             event = None
         return event
-    
+
+    def get_auth(self, instance):
+        result = {'email':None, 'password':None}
+        gcal_auth = getattr(instance, 'gcal_auth', None)
+        if not gcal_auth is None:
+            if hasattr(gcal_auth, '__call__'):
+                result = gcal_auth(self)
+            else:
+                result = gcal_auth
+        return result
+        
     def update(self, sender, instance, retry=False):
         """
         Update or create an entry in Google Calendar for the given instance
@@ -91,7 +107,7 @@ class CalendarObserver(object):
         """
         adapter = self.adapters[sender]
         if adapter.can_save(instance):
-            service = self.get_service()
+            service = self.get_service(**self.get_auth(instance))
             event = self.get_event(service, instance) or CalendarEventEntry()
             adapter.get_event_data(instance).populate_event(event)
             if adapter.can_notify(instance):
@@ -120,7 +136,7 @@ class CalendarObserver(object):
         """
         adapter = self.adapters[sender]
         if adapter.can_delete(instance):
-            service = self.get_service()
+            service = self.get_service(**self.get_auth(instance))
             event = self.get_event(service, instance)
             if event:
                 if adapter.can_notify(instance):
