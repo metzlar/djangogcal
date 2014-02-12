@@ -18,13 +18,11 @@ class CalendarObserver(object):
     
     DEFAULT_FEED = '/calendar/feeds/default/private/full'
     
-    def __init__(self, email, password, feed=DEFAULT_FEED, service=None):
+    def __init__(self, feed=DEFAULT_FEED, service=None):
         """
         Initialize an instance of the CalendarObserver class.
         """
         self.adapters = {}
-        self.email = email
-        self.password = password
         self.feed = feed
         self.service = service
     
@@ -62,14 +60,10 @@ class CalendarObserver(object):
         """
         self.delete(kwargs['sender'], kwargs['instance'])
     
-    def get_service(self, email=None, password=None):
+    def get_service(self, email, password):
         """
        Get an authenticated gdata.calendar.service.CalendarService instance.
        """
-        if not email:
-            email = self.email
-        if not password:
-            password = self.password
         if self.service is None:
             self.service = CalendarService(
                 email = email,
@@ -90,24 +84,16 @@ class CalendarObserver(object):
             event = None
         return event
 
-    def get_auth(self, instance):
-        result = {'email':None, 'password':None}
-        gcal_auth = getattr(instance, 'gcal_auth', None)
-        if not gcal_auth is None:
-            if hasattr(gcal_auth, '__call__'):
-                result = gcal_auth(self)
-            else:
-                result = gcal_auth
-        return result
-        
     def update(self, sender, instance, retry=False):
         """
         Update or create an entry in Google Calendar for the given instance
         of the sender model type.
         """
         adapter = self.adapters[sender]
+        email, password = adapter.get_username_password(instance)
+        
         if adapter.can_save(instance):
-            service = self.get_service(**self.get_auth(instance))
+            service = self.get_service(email, password)
             event = self.get_event(service, instance) or CalendarEventEntry()
             adapter.get_event_data(instance).populate_event(event)
             if adapter.can_notify(instance):
@@ -135,8 +121,10 @@ class CalendarObserver(object):
         of the sender model type.
         """
         adapter = self.adapters[sender]
+        email, password = adapter.get_username_password(instance)
+        
         if adapter.can_delete(instance):
-            service = self.get_service(**self.get_auth(instance))
+            service = self.get_service(email, password)
             event = self.get_event(service, instance)
             if event:
                 if adapter.can_notify(instance):

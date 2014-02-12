@@ -109,3 +109,6 @@ class CalendarAdapter(object):
         conforming to the CalendarEventData protocol.
         """
         raise NotImplementedError()
+
+    def get_username_password(self, instance):
+        raise NotImplementedError()
